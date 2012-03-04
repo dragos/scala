@@ -10,6 +10,7 @@ class WorkScheduler {
   private var todo = new mutable.Queue[Action]
   private var throwables = new mutable.Queue[Throwable]
   private var interruptReqs = new mutable.Queue[InterruptReq]
+  @volatile private var shuttingDown = false
 
   /** Called from server: block until one of todo list, throwables or interruptReqs is nonempty */
   def waitForMoreWork() = synchronized {
@@ -49,7 +50,7 @@ class WorkScheduler {
   }
 
   /** Called from client: have interrupt executed by server and return result */
-  def doQuickly[A](op: () => A): A = {
+  def doQuickly[A](op: () => A): A = if (!shuttingDown) { // shuttingDown needs to be volatile since it can't move inside the synchronized block
     val ir = new InterruptReq {
       type R = A
       val todo = op
@@ -59,14 +60,27 @@ class WorkScheduler {
       notify()
     }
     ir.getResult()
+  } else {
+    throw new FailedInterrupt(new Exception("Posted a work item to a compiler that's shutting down"))
   }
 
   /** Called from client: have action executed by server */
   def postWorkItem(action: Action) = synchronized {
-    todo enqueue action
-    notify()
+    if (!shuttingDown) {
+      todo enqueue action
+      notify()
+    } else action match {
+        case w: CancelableAction => w.raiseMissing()
+        case e: EmptyAction => // do nothing
+        case _ => println("don't know what to do with this " + action.getClass)
+    }
   }
-
+  
+  /** Called from client: compiler is shutting down. Ignore all requests. */
+  def setShutdown() = synchronized {
+    shuttingDown = true
+  }
+  
   /** Called from client: cancel all queued actions */
   def cancelQueued() = synchronized {
     todo.clear()
@@ -84,4 +98,10 @@ class WorkScheduler {
 class EmptyAction extends (() => Unit) {
   def apply() {}
 }
+
+trait CancelableAction extends (() => Unit) {
+  /** Raise a MissingReponse, if the work item carries a response. */
+  def raiseMissing(): Unit
+}
+
 

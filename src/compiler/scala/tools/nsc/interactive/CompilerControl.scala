@@ -10,6 +10,7 @@ import scala.tools.nsc.io.AbstractFile
 import scala.tools.nsc.util.{SourceFile, Position, WorkScheduler}
 import scala.tools.nsc.symtab._
 import scala.tools.nsc.ast._
+import scala.tools.nsc.util.CancelableAction
 
 /** Interface of interactive compiler to a client such as an IDE
  *  The model the presentation compiler consists of the following parts:
@@ -277,11 +278,8 @@ trait CompilerControl { self: Global =>
 
   // items that get sent to scheduler
 
-  abstract class WorkItem extends (() => Unit) {
+  abstract class WorkItem extends (() => Unit) with CancelableAction {
     val onCompilerThread = self.onCompilerThread
-
-    /** Raise a MissingReponse, if the work item carries a response. */
-    def raiseMissing(): Unit
   }
 
   case class ReloadItem(sources: List[SourceFile], response: Response[Unit]) extends WorkItem {
