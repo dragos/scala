@@ -1,11 +1,11 @@
 package scala.reflect
 package api
 
-trait Symbols { self: Universe =>
+trait Symbols extends IdealSymbols { self: Names with Types with AnnotationInfos with Positions =>
 
   type Symbol >: Null <: AbsSymbol
 
-  abstract class AbsSymbol { this: Symbol =>
+  abstract class AbsSymbol extends IdealSymbol { this: Symbol =>
 
     /** The modifiers of this symbol
      */

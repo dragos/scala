@@ -7,6 +7,7 @@ abstract class Universe extends Symbols
                            with Scopes
                            with Names
                            with Trees
+                           with TreeTransformers 
                            with Positions
                            with TreePrinters
                            with AnnotationInfos

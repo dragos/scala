@@ -9,7 +9,7 @@ package internal
 import Flags._
 import api.Modifier
 
-trait Trees extends api.Trees { self: SymbolTable =>
+trait Trees extends api.Trees with api.TreeTransformers { self: SymbolTable =>
 
   // Belongs in TreeInfo but then I can't reach it from TreePrinters.
   def isReferenceToScalaMember(t: Tree, Id: Name) = t match {
@@ -269,6 +269,14 @@ trait Trees extends api.Trees { self: SymbolTable =>
       case Seq(_, rest @ _*) => Block(stats.init.toList, stats.last)
     }
   }
+
+  
+  /** Delegate for a TypeTree symbol. This operation is unsafe because
+   *  it may trigger type checking when forcing the type symbol of the
+   *  underlying type.
+   */
+  protected def typeTreeSymbol(tree: TypeTree): Symbol =
+    if (tree.tpe == null) null else tree.tpe.typeSymbol
 
   // --- specific traversers and transformers
 
