@@ -6,7 +6,7 @@
 package scala.reflect
 package api
 
-trait StandardNames { self: Universe =>
+trait StandardNames { self: Names =>
 
   val nme: AbsTermNames
 

@@ -11,12 +11,12 @@ import scala.collection.mutable.ListBuffer
 // Syncnote: Trees are currently not thread-safe.
 trait Trees { self: Names 
   with Positions 
-  with IdealSymbols 
-  with IdealTypes 
+  with PresentationSymbols 
+  with PresentationTypes 
   with StandardNames 
   with Constants
   with TreePrinters
-  with StandardDefinitions =>
+  with PresentationStandardDefinitions =>
 
   private[scala] var nodeCount = 0
 

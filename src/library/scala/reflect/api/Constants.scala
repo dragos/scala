@@ -10,7 +10,7 @@ import java.lang.Integer.toOctalString
 import annotation.switch
 
 trait Constants {
-  self: Universe =>
+  self: PresentationTypes with PresentationSymbols =>
 
   abstract class AbsConstant {
     val value: Any

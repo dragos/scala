@@ -1,7 +1,7 @@
 package scala.reflect
 package api
 
-trait Types extends IdealTypes { self: Universe =>
+trait Types extends PresentationTypes { self: Universe =>
 
   /** This class declares operations that are visible in a Type.
    */

@@ -1,6 +1,6 @@
 package scala.reflect.api
 
-trait IdealTypes {
+trait PresentationTypes {
 
   type Type <: AnyRef
 

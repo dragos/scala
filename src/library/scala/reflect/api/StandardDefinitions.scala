@@ -6,51 +6,11 @@
 package scala.reflect
 package api
 
-trait StandardDefinitions { self: Universe =>
+trait StandardDefinitions extends PresentationStandardDefinitions { self: Universe =>
 
   val definitions: AbsDefinitions
 
-  abstract class AbsDefinitions {
-    // packages
-    def RootPackage: Symbol
-    def RootClass: Symbol
-    def EmptyPackage: Symbol
-    def ScalaPackage: Symbol
-
-    // top types
-    def AnyClass   : Symbol
-    def AnyValClass: Symbol
-    def AnyRefClass: Symbol
-    def ObjectClass: Symbol
-
-    // bottom types
-    def NullClass   : Symbol
-    def NothingClass: Symbol
-
-    // the scala value classes
-    def UnitClass   : Symbol
-    def ByteClass   : Symbol
-    def ShortClass  : Symbol
-    def CharClass   : Symbol
-    def IntClass    : Symbol
-    def LongClass   : Symbol
-    def FloatClass  : Symbol
-    def DoubleClass : Symbol
-    def BooleanClass: Symbol
-
-    // fundamental reference classes
-    def SymbolClass : Symbol
-    def StringClass : Symbol
-    def ClassClass  : Symbol
-
-    // product, tuple, function
-    def TupleClass    : Array[Symbol]
-    def ProductClass  : Array[Symbol]
-    def FunctionClass : Array[Symbol]
-
-    // fundamental modules
-    def PredefModule: Symbol
-
+  abstract class AbsDefinitions extends PresentationAbsDefinitions {
     /** Given a type T, returns the type corresponding to the VM's
      *  representation: ClassClass's type constructor applied to `arg`.
      */

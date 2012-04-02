@@ -3,7 +3,8 @@ package api
 
 import java.io.{ PrintWriter, StringWriter }
 
-trait TreePrinters { self: Universe =>
+trait TreePrinters { 
+  self: Trees with PresentationSymbols with PresentationTypes with Names =>
 
   trait TreePrinter {
     def print(args: Any*)
