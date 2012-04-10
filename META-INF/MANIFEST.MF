@@ -39,8 +39,6 @@ Export-Package:
  scala.tools.nsc.typechecker,
  scala.tools.nsc.util,
  scala.tools.util,
- scala.reflect.internal,
- scala.reflect.internal.settings,
  ch.epfl.lamp.compiler.msil,
  ch.epfl.lamp.compiler.msil.emit,
  ch.epfl.lamp.compiler.msil.util,

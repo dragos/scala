@@ -342,6 +342,14 @@ trait Trees extends reflect.generic.Trees { self: SymbolTable =>
   object TypeTree extends TypeTreeExtractor
 
   def TypeTree(tp: Type): TypeTree = TypeTree() setType tp
+  
+  /** Delegate for a TypeTree symbol. This operation is unsafe because
+   *  it may trigger type checking when forcing the type symbol of the
+   *  underlying type.
+   */
+  protected def typeTreeSymbol(tree: AbsTypeTree): Symbol = 
+    if (tree.tpe == null) null else tree.tpe.typeSymbol
+
 
   /** Documented definition, eliminated by analyzer */
   case class DocDef(comment: DocComment, definition: Tree)

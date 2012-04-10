@@ -6,7 +6,7 @@ package scala.tools.nsc
 package interactive
 
 import ast.Trees
-import symtab.Positions
+
 import scala.tools.nsc.util.{SourceFile, Position, RangePosition, NoPosition, WorkScheduler}
 import scala.collection.mutable.ListBuffer
 
@@ -27,7 +27,7 @@ import scala.collection.mutable.ListBuffer
  *   If the node has a TransparentPosition, the solid descendants of all its children
  *   Otherwise, the singleton consisting of the node itself.
  */
-trait RangePositions extends Trees with Positions {
+trait RangePositions extends Trees with symtab.Positions {
 self: scala.tools.nsc.Global =>
 
   case class Range(pos: Position, tree: Tree) {

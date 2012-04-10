@@ -3,11 +3,12 @@ package generic
 
 import Flags._
 
-@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Symbols { self: Universe =>
+@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Symbols extends interactive.Symbols { 
+  self: Universe =>
 
   type Symbol >: Null <: AbsSymbol
 
-  abstract class AbsSymbol extends HasFlags {
+  abstract class AbsSymbol extends HasFlags with super.AbsSymbol {
     this: Symbol =>
 
     type FlagsType          = Long

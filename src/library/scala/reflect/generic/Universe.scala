@@ -5,13 +5,11 @@ package generic
 abstract class Universe extends Symbols
                            with Types
                            with Constants
+                           with interactive.Positions
+                           with interactive.StandardDefinitions
                            with Scopes
                            with Names
                            with StdNames
                            with Trees
                            with AnnotationInfos
-                           with StandardDefinitions {
-  type Position
-  val NoPosition: Position
-}
-
+                           with StandardDefinitions

@@ -4,8 +4,14 @@ package generic
 import java.io.{ PrintWriter, StringWriter }
 import Flags._
 
-@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Trees { self: Universe =>
-
+@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Trees { self: generic.Names 
+  with interactive.Positions 
+  with interactive.Symbols 
+  with interactive.Types
+  with generic.StdNames
+  with interactive.Constants
+  with interactive.StandardDefinitions =>
+    
   abstract class AbsTreePrinter(out: PrintWriter) {
     def print(tree: Tree)
     def flush()
@@ -580,9 +586,15 @@ import Flags._
     * <code>RefCheck</code>, where the arbitrary type trees are all replaced by
     * TypeTree's. */
   abstract class AbsTypeTree extends TypTree {
-    override def symbol = if (tpe == null) null else tpe.typeSymbol
+    override def symbol = typeTreeSymbol(this)
     override def isEmpty = (tpe eq null) || tpe == NoType
   }
+  
+  /** Delegate for a TypeTree symbol. This operation is unsafe because
+   *  it may trigger type checking when forcing the type symbol of the
+   *  underlying type.
+   */
+  protected def typeTreeSymbol(tree: AbsTypeTree): Symbol // =  if (tree.tpe == null) null else tree.tpe.typeSymbol
 
   /** A tree that has an annotation attached to it. Only used for annotated types and
    *  annotation ascriptions, annotations on definitions are stored in the Modifiers.

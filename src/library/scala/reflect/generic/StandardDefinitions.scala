@@ -6,11 +6,12 @@
 package scala.reflect
 package generic
 
-@deprecated("scala.reflect.generic will be removed", "2.9.1") trait StandardDefinitions { self: Universe =>
+@deprecated("scala.reflect.generic will be removed", "2.9.1") trait StandardDefinitions { 
+  self: Universe with interactive.StandardDefinitions =>
 
   val definitions: AbsDefinitions
 
-  abstract class AbsDefinitions {
+  abstract class AbsDefinitions extends PresentationAbsDefinitions {
 
     // outer packages and their classes
     def RootPackage: Symbol

@@ -9,7 +9,7 @@ package generic
 import java.lang.Integer.toOctalString
 import annotation.switch
 
-@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Constants {
+@deprecated("scala.reflect.generic will be removed", "2.9.1") trait Constants extends interactive.Constants {
   self: Universe =>
 
   import definitions._
@@ -30,7 +30,10 @@ import annotation.switch
   // For supporting java enumerations inside java annotations (see ClassfileParser)
   final val EnumTag    = 13
 
-  case class Constant(value: Any) {
+  /** Implements the abstract inherited method from interactive.Constants. */
+  object Constant extends ConstantExtractor
+  
+  case class Constant(value: Any) extends AbsConstant {
     val tag: Int = value match {
       case null         => NullTag
       case x: Unit      => UnitTag

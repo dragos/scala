@@ -10,12 +10,14 @@ import scala.reflect.NameTransformer
 import scala.io.Codec
 import java.security.MessageDigest
 
+import scala.reflect.generic
+
 /** The class Names ...
  *
  *  @author  Martin Odersky
  *  @version 1.0, 05/02/2005
  */
-trait Names extends reflect.generic.Names {
+trait Names extends reflect.generic.Names with generic.interactive.Names {
 
 // Operations -------------------------------------------------------------
 
@@ -127,7 +129,7 @@ trait Names extends reflect.generic.Names {
 // Classes ----------------------------------------------------------------------
 
   /** The name class. */
-  sealed abstract class Name(protected val index: Int, protected val len: Int) extends Function1[Int, Char] {
+  sealed abstract class Name(protected val index: Int, protected val len: Int) extends AbsName with Function1[Int, Char] {
     /** Index into name table */
     def start: Int = index
 
@@ -369,7 +371,10 @@ trait Names extends reflect.generic.Names {
       else if (isTypeName) newTypeName(res)
       else newTermName(res)
     }
-
+    
+    def encodedName: Name = encode
+    def encoded: String = encode.toString
+    
     def append(suffix: String): Name
     def append(suffix: Name): Name
 
@@ -379,6 +384,12 @@ trait Names extends reflect.generic.Names {
       NameTransformer.decode(toString()) +
       (if (nameDebug && isTypeName) "!" else ""))//debug
 
+    def decoded: String = decode
+    def decodedName: Name = {
+      val decoded = decode
+      if (isTypeName) newTypeName(decoded) else newTermName(decoded)
+    }
+      
     def isOperatorName: Boolean = decode != toString
     def nameKind: String = if (isTypeName) "type" else "term"
     def longString: String = nameKind + " " + NameTransformer.decode(toString)

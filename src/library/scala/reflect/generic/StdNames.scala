@@ -4,7 +4,7 @@ package generic
 import scala.reflect.NameTransformer
 
 @deprecated("scala.reflect.generic will be removed", "2.9.1") trait StdNames {
-  self: Universe =>
+  self: Names with interactive.Symbols =>
 
   val nme: LibraryTermNames
   val tpnme: LibraryTypeNames
