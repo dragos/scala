@@ -1879,6 +1879,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     /** Is this symbol defined in the same scope and compilation unit as `that` symbol? */
     def isCoDefinedWith(that: Symbol) = (
          (this.rawInfo ne NoType)
+      && (that.rawInfo ne NoType)
       && (this.effectiveOwner == that.effectiveOwner)
       && (   !this.effectiveOwner.isPackageClass
           || (this.sourceFile eq null)
