@@ -372,6 +372,8 @@ trait Namers extends MethodSynthesis {
       val fails  = (
            module.isModule
         && clazz.isClass
+        && clazz.exists
+        && module.exists
         && !module.isSynthetic
         && !clazz.isSynthetic
         && (clazz.sourceFile ne null)
