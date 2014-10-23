@@ -11,7 +11,7 @@ import Flags._
 import scala.collection._
 import scala.language.postfixOps
 
-abstract class CleanUp extends Transform with ast.TreeDSL {
+abstract class CleanUp extends Statics with Transform with ast.TreeDSL {
   import global._
   import definitions._
   import CODE._
@@ -35,7 +35,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
   protected def newTransformer(unit: CompilationUnit): Transformer =
     new CleanUpTransformer(unit)
 
-  class CleanUpTransformer(unit: CompilationUnit) extends Transformer {
+  class CleanUpTransformer(unit: CompilationUnit) extends StaticsTransformer {
     private val newStaticMembers      = mutable.Buffer.empty[Tree]
     private val newStaticInits        = mutable.Buffer.empty[Tree]
     private val symbolsStoredAsStatic = mutable.Map.empty[String, Symbol]
@@ -49,7 +49,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       clearStatics()
       val newBody = transformTrees(body)
       val templ   = deriveTemplate(tree)(_ => transformTrees(newStaticMembers.toList) ::: newBody)
-      try addStaticInits(templ) // postprocess to include static ctors
+      try addStaticInits(templ, newStaticInits, localTyper) // postprocess to include static ctors
       finally clearStatics()
     }
     private def mkTerm(prefix: String): TermName = unit.freshTermName(prefix)
@@ -76,7 +76,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       val qual0 = ad.qual
       val params = ad.args
         if (settings.logReflectiveCalls)
-          unit.echo(ad.pos, "method invocation uses reflection")
+          reporter.echo(ad.pos, "method invocation uses reflection")
 
         val typedPos = typedWithPos(ad.pos) _
 
@@ -168,7 +168,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
                 def methodSymRHS  = ((REF(forReceiverSym) DOT Class_getMethod)(LIT(method), REF(reflParamsCacheSym)))
                 def cacheRHS      = ((REF(methodCache) DOT methodCache_add)(REF(forReceiverSym), REF(methodSym)))
                 BLOCK(
-                  REF(methodSym)        === (REF(ensureAccessibleMethod) APPLY (methodSymRHS)),
+                  REF(methodSym)        === (REF(currentRun.runDefinitions.ensureAccessibleMethod) APPLY (methodSymRHS)),
                   REF(reflPolyCacheSym) === gen.mkSoftRef(cacheRHS),
                   Return(REF(methodSym))
                 )
@@ -181,11 +181,11 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
 
         def testForName(name: Name): Tree => Tree = t => (
           if (nme.CommonOpNames(name))
-            gen.mkMethodCall(Boxes_isNumberOrBool, t :: Nil)
+            gen.mkMethodCall(currentRun.runDefinitions.Boxes_isNumberOrBool, t :: Nil)
           else if (nme.BooleanOpNames(name))
             t IS_OBJ BoxedBooleanClass.tpe
           else
-            gen.mkMethodCall(Boxes_isNumber, t :: Nil)
+            gen.mkMethodCall(currentRun.runDefinitions.Boxes_isNumber, t :: Nil)
         )
 
         /*  The Tree => Tree function in the return is necessary to prevent the original qual
@@ -219,6 +219,9 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
 
         /* ### CALLING THE APPLY ### */
         def callAsReflective(paramTypes: List[Type], resType: Type): Tree = {
+          val runDefinitions = currentRun.runDefinitions
+          import runDefinitions._
+
           gen.evalOnce(qual, currentOwner, unit) { qual1 =>
             /* Some info about the type of the method being called. */
             val methSym       = ad.symbol
@@ -357,13 +360,13 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
               assert(params.length == mparams.length, ((params, mparams)))
               (mparams, resType)
             case tpe @ OverloadedType(pre, alts) =>
-              unit.warning(ad.pos, s"Overloaded type reached the backend! This is a bug in scalac.\n     Symbol: ${ad.symbol}\n  Overloads: $tpe\n  Arguments: " + ad.args.map(_.tpe))
+              reporter.warning(ad.pos, s"Overloaded type reached the backend! This is a bug in scalac.\n     Symbol: ${ad.symbol}\n  Overloads: $tpe\n  Arguments: " + ad.args.map(_.tpe))
               alts filter (_.paramss.flatten.size == params.length) map (_.tpe) match {
                 case mt @ MethodType(mparams, resType) :: Nil =>
-                  unit.warning(NoPosition, "Only one overload has the right arity, proceeding with overload " + mt)
+                  reporter.warning(NoPosition, "Only one overload has the right arity, proceeding with overload " + mt)
                   (mparams, resType)
                 case _ =>
-                  unit.error(ad.pos, "Cannot resolve overload.")
+                  reporter.error(ad.pos, "Cannot resolve overload.")
                   (Nil, NoType)
               }
           }
@@ -478,18 +481,33 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       * For instance, say we have a Scala class:
       *
       * class Cls {
-      *   // ...
-      *   def someSymbol = `symbolic
-      *   // ...
+      *   def someSymbol1 = 'Symbolic1
+      *   def someSymbol2 = 'Symbolic2
+      *   def sameSymbol1 = 'Symbolic1
+      *   val someSymbol3 = 'Symbolic3
       * }
       *
       * After transformation, this class looks like this:
       *
       * class Cls {
-      *   private "static" val <some_name>$symbolic = Symbol("symbolic")
-      *   // ...
-      *   def someSymbol = <some_name>$symbolic
-      *   // ...
+      *   private <static> var symbol$1: scala.Symbol
+      *   private <static> var symbol$2: scala.Symbol
+      *   private <static> var symbol$3: scala.Symbol
+      *   private          val someSymbol3: scala.Symbol
+      *
+      *   private <static> def <clinit> = {
+      *     symbol$1 = Symbol.apply("Symbolic1")
+      *     symbol$2 = Symbol.apply("Symbolic2")
+      *   }
+      *
+      *   private def <init> = {
+      *     someSymbol3 = symbol$3
+      *   }
+      *
+      *   def someSymbol1 = symbol$1
+      *   def someSymbol2 = symbol$2
+      *   def sameSymbol1 = symbol$1
+      *   val someSymbol3 = someSymbol3
       * }
       *
       * The reasoning behind this transformation is the following. Symbols get interned - they are stored
@@ -499,17 +517,17 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       * is accessed only once during class loading, and after that, the unique symbol is in the static
       * member. Hence, it is cheap to both reach the unique symbol and do equality checks on it.
       *
-      * And, finally, be advised - scala symbol literal and the Symbol class of the compiler
+      * And, finally, be advised - Scala's Symbol literal (scala.Symbol) and the Symbol class of the compiler
       * have little in common.
       */
       case Apply(fn, (arg @ Literal(Constant(symname: String))) :: Nil) if fn.symbol == Symbol_apply =>
         def transformApply = {
-        // add the symbol name to a map if it's not there already
-        val rhs = gen.mkMethodCall(Symbol_apply, arg :: Nil)
-        val staticFieldSym = getSymbolStaticField(tree.pos, symname, rhs, tree)
-        // create a reference to a static field
-        val ntree = typedWithPos(tree.pos)(REF(staticFieldSym))
-        super.transform(ntree)
+          // add the symbol name to a map if it's not there already
+          val rhs = gen.mkMethodCall(Symbol_apply, arg :: Nil)
+          val staticFieldSym = getSymbolStaticField(tree.pos, symname, rhs, tree)
+          // create a reference to a static field
+          val ntree = typedWithPos(tree.pos)(REF(staticFieldSym))
+          super.transform(ntree)
         }
         transformApply
 
@@ -518,7 +536,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       //
       // See SI-6611; we must *only* do this for literal vararg arrays.
       case Apply(appMeth, List(Apply(wrapRefArrayMeth, List(arg @ StripCast(ArrayValue(_, _)))), _))
-      if wrapRefArrayMeth.symbol == Predef_wrapRefArray && appMeth.symbol == ArrayModule_genericApply =>
+      if wrapRefArrayMeth.symbol == currentRun.runDefinitions.Predef_wrapRefArray && appMeth.symbol == ArrayModule_genericApply =>
         super.transform(arg)
       case Apply(appMeth, List(elem0, Apply(wrapArrayMeth, List(rest @ ArrayValue(elemtpt, _)))))
       if wrapArrayMeth.symbol == Predef_wrapArray(elemtpt.tpe) && appMeth.symbol == ArrayModule_apply(elemtpt.tpe) =>
@@ -552,44 +570,6 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
 
         stfieldSym
       })
-    }
-
-    /* finds the static ctor DefDef tree within the template if it exists. */
-    private def findStaticCtor(template: Template): Option[Tree] =
-      template.body find {
-        case defdef @ DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => defdef.symbol.hasStaticFlag
-        case _ => false
-      }
-
-    /* changes the template for the class so that it contains a static constructor with symbol fields inits,
-     * augments an existing static ctor if one already existed.
-     */
-    private def addStaticInits(template: Template): Template = {
-      if (newStaticInits.isEmpty)
-        template
-      else {
-        val newCtor = findStaticCtor(template) match {
-          // in case there already were static ctors - augment existing ones
-          // currently, however, static ctors aren't being generated anywhere else
-          case Some(ctor @ DefDef(_,_,_,_,_,_)) =>
-            // modify existing static ctor
-            deriveDefDef(ctor) {
-              case block @ Block(stats, expr) =>
-                // need to add inits to existing block
-                treeCopy.Block(block, newStaticInits.toList ::: stats, expr)
-              case term: TermTree =>
-                // need to create a new block with inits and the old term
-                treeCopy.Block(term, newStaticInits.toList, term)
-            }
-          case _ =>
-            // create new static ctor
-            val staticCtorSym  = currentClass.newStaticConstructor(template.pos)
-            val rhs            = Block(newStaticInits.toList, Literal(Constant(())))
-
-            localTyper.typedPos(template.pos)(DefDef(staticCtorSym, rhs))
-        }
-        deriveTemplate(template)(newCtor :: _)
-      }
     }
 
   } // CleanUpTransformer

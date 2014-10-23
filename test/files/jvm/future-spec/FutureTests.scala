@@ -1,6 +1,3 @@
-
-
-
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.concurrent.duration.Duration.Inf
@@ -10,12 +7,12 @@ import scala.util.{Try,Success,Failure}
 
 
 
-object FutureTests extends MinimalScalaTest {
+class FutureTests extends MinimalScalaTest {
 
   /* some utils */
 
   def testAsync(s: String)(implicit ec: ExecutionContext): Future[String] = s match {
-    case "Hello"   => future { "World" }
+    case "Hello"   => Future { "World" }
     case "Failure" => Future.failed(new RuntimeException("Expected exception; to test fault-tolerance"))
     case "NoReply" => Promise[String]().future
   }
@@ -34,7 +31,7 @@ object FutureTests extends MinimalScalaTest {
 
       class ThrowableTest(m: String) extends Throwable(m)
 
-      val f1 = future[Any] {
+      val f1 = Future[Any] {
         throw new ThrowableTest("test")
       }
 
@@ -43,7 +40,7 @@ object FutureTests extends MinimalScalaTest {
       }
 
       val latch = new TestLatch
-      val f2 = future {
+      val f2 = Future {
         Await.ready(latch, 5 seconds)
         "success"
       }
@@ -61,7 +58,7 @@ object FutureTests extends MinimalScalaTest {
 
       Await.result(f3, defaultTimeout) mustBe ("SUCCESS")
 
-      val waiting = future {
+      val waiting = Future {
         Thread.sleep(1000)
       }
       Await.ready(waiting, 2000 millis)
@@ -106,8 +103,8 @@ object FutureTests extends MinimalScalaTest {
     import ExecutionContext.Implicits._
 
     "compose with for-comprehensions" in {
-      def async(x: Int) = future { (x * 2).toString }
-      val future0 = future[Any] {
+      def async(x: Int) = Future { (x * 2).toString }
+      val future0 = Future[Any] {
         "five!".length
       }
 
@@ -119,8 +116,8 @@ object FutureTests extends MinimalScalaTest {
 
       val future2 = for {
         a <- future0.mapTo[Int]
-        b <- (future { (a * 2).toString }).mapTo[Int]
-        c <- future { (7 * 2).toString }
+        b <- (Future { (a * 2).toString }).mapTo[Int]
+        c <- Future { (7 * 2).toString }
       } yield b + "-" + c
 
       Await.result(future1, defaultTimeout) mustBe ("10-14")
@@ -132,8 +129,8 @@ object FutureTests extends MinimalScalaTest {
       case class Req[T](req: T)
       case class Res[T](res: T)
       def async[T](req: Req[T]) = req match {
-        case Req(s: String) => future { Res(s.length) }
-        case Req(i: Int)    => future { Res((i * 2).toString) }
+        case Req(s: String) => Future { Res(s.length) }
+        case Req(i: Int)    => Future { Res((i * 2).toString) }
       }
 
       val future1 = for {
@@ -224,7 +221,7 @@ object FutureTests extends MinimalScalaTest {
     "andThen like a boss" in {
       val q = new java.util.concurrent.LinkedBlockingQueue[Int]
       for (i <- 1 to 1000) {
-        val chained = future {
+        val chained = Future {
           q.add(1); 3
         } andThen {
           case _ => q.add(2)
@@ -251,7 +248,7 @@ object FutureTests extends MinimalScalaTest {
     }
 
     "find" in {
-      val futures = for (i <- 1 to 10) yield future {
+      val futures = for (i <- 1 to 10) yield Future {
         i
       }
 
@@ -286,7 +283,7 @@ object FutureTests extends MinimalScalaTest {
 
     "fold" in {
       val timeout = 10000 millis
-      def async(add: Int, wait: Int) = future {
+      def async(add: Int, wait: Int) = Future {
         Thread.sleep(wait)
         add
       }
@@ -306,7 +303,7 @@ object FutureTests extends MinimalScalaTest {
 
     "fold by composing" in {
       val timeout = 10000 millis
-      def async(add: Int, wait: Int) = future {
+      def async(add: Int, wait: Int) = Future {
         Thread.sleep(wait)
         add
       }
@@ -321,7 +318,7 @@ object FutureTests extends MinimalScalaTest {
 
     "fold with an exception" in {
       val timeout = 10000 millis
-      def async(add: Int, wait: Int) = future {
+      def async(add: Int, wait: Int) = Future {
         Thread.sleep(wait)
         if (add == 6) throw new IllegalArgumentException("shouldFoldResultsWithException: expected")
         add
@@ -357,7 +354,7 @@ object FutureTests extends MinimalScalaTest {
     }
 
     "shouldReduceResults" in {
-      def async(idx: Int) = future {
+      def async(idx: Int) = Future {
         Thread.sleep(idx * 20)
         idx
       }
@@ -373,7 +370,7 @@ object FutureTests extends MinimalScalaTest {
     }
 
     "shouldReduceResultsWithException" in {
-      def async(add: Int, wait: Int) = future {
+      def async(add: Int, wait: Int) = Future {
         Thread.sleep(wait)
         if (add == 6) throw new IllegalArgumentException("shouldFoldResultsWithException: expected")
         else add
@@ -404,7 +401,7 @@ object FutureTests extends MinimalScalaTest {
         }
       }
 
-      val oddFutures = List.fill(100)(future { counter.incAndGet() }).iterator
+      val oddFutures = List.fill(100)(Future { counter.incAndGet() }).iterator
       val traversed = Future.sequence(oddFutures)
       Await.result(traversed, defaultTimeout).sum mustBe (10000)
 
@@ -420,11 +417,11 @@ object FutureTests extends MinimalScalaTest {
     "shouldBlockUntilResult" in {
       val latch = new TestLatch
 
-      val f = future {
+      val f = Future {
         Await.ready(latch, 5 seconds)
         5
       }
-      val f2 = future {
+      val f2 = Future {
         val res = Await.result(f, Inf)
         res + 9
       }
@@ -437,7 +434,7 @@ object FutureTests extends MinimalScalaTest {
 
       Await.result(f2, defaultTimeout) mustBe (14)
 
-      val f3 = future {
+      val f3 = Future {
         Thread.sleep(100)
         5
       }
@@ -450,7 +447,7 @@ object FutureTests extends MinimalScalaTest {
     "run callbacks async" in {
       val latch = Vector.fill(10)(new TestLatch)
 
-      val f1 = future {
+      val f1 = Future {
         latch(0).open()
         Await.ready(latch(1), TestLatch.DefaultTimeout)
         "Hello"
@@ -518,7 +515,7 @@ object FutureTests extends MinimalScalaTest {
     }
 
     "should not deadlock with nested await (ticket 1313)" in {
-      val simple = Future() map {
+      val simple = Future(()) map {
         _ =>
         val unit = Future(())
         val umap = unit map { _ => () }
@@ -527,7 +524,7 @@ object FutureTests extends MinimalScalaTest {
       Await.ready(simple, Inf).isCompleted mustBe (true)
 
       val l1, l2 = new TestLatch
-      val complex = Future() map {
+      val complex = Future(()) map {
         _ =>
         blocking {
           val nested = Future(())
@@ -542,12 +539,10 @@ object FutureTests extends MinimalScalaTest {
 
     "should not throw when Await.ready" in {
       val expected = try Success(5 / 0) catch { case a: ArithmeticException => Failure(a) }
-      val f = future(5).map(_ / 0)
+      val f = Future(5).map(_ / 0)
       Await.ready(f, defaultTimeout).value.get.toString mustBe expected.toString
     }
 
   }
 
 }
-
-

@@ -141,7 +141,7 @@ trait MatchOptimization extends MatchTreeMaking with MatchAnalysis {
     object ReusedCondTreeMaker {
       def apply(orig: CondTreeMaker) = new ReusedCondTreeMaker(orig.prevBinder, orig.nextBinder, orig.cond, orig.res, orig.pos)
     }
-    class ReusedCondTreeMaker(prevBinder: Symbol, val nextBinder: Symbol, cond: Tree, res: Tree, val pos: Position) extends TreeMaker { import CODE._
+    class ReusedCondTreeMaker(prevBinder: Symbol, val nextBinder: Symbol, cond: Tree, res: Tree, val pos: Position) extends TreeMaker {
       lazy val localSubstitution        = Substitution(List(prevBinder), List(CODE.REF(nextBinder)))
       lazy val storedCond               = freshSym(pos, BooleanTpe, "rc") setFlag MUTABLE
       lazy val treesToHoist: List[Tree] = {
@@ -232,9 +232,6 @@ trait MatchOptimization extends MatchTreeMaking with MatchAnalysis {
       def defaultSym: Symbol
       def defaultBody: Tree
       def defaultCase(scrutSym: Symbol = defaultSym, guard: Tree = EmptyTree, body: Tree = defaultBody): CaseDef
-
-      private def sequence[T](xs: List[Option[T]]): Option[List[T]] =
-        if (xs exists (_.isEmpty)) None else Some(xs.flatten)
 
       object GuardAndBodyTreeMakers {
           def unapply(tms: List[TreeMaker]): Option[(Tree, Tree)] = {
@@ -445,7 +442,7 @@ trait MatchOptimization extends MatchTreeMaking with MatchAnalysis {
                   val distinctAlts = distinctBy(switchableAlts)(extractConst)
                   if (distinctAlts.size < switchableAlts.size) {
                     val duplicated = switchableAlts.groupBy(extractConst).flatMap(_._2.drop(1).take(1)) // report the first duplicated
-                    global.currentUnit.warning(pos, s"Pattern contains duplicate alternatives: ${duplicated.mkString(", ")}")
+                    reporter.warning(pos, s"Pattern contains duplicate alternatives: ${duplicated.mkString(", ")}")
                   }
                   CaseDef(Alternative(distinctAlts), guard, body)
                 }

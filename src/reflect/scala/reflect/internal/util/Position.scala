@@ -8,43 +8,7 @@ package reflect
 package internal
 package util
 
-/** The Position class and its subclasses represent positions of ASTs and symbols.
- *  Every subclass of DefinedPosition refers to a SourceFile and three character
- *  offsets within it: start, end, and point. The point is where the ^ belongs when
- *  issuing an error message, usually a Name. A range position can be designated
- *  as transparent, which excuses it from maintaining the invariants to follow. If
- *  a transparent position has opaque children, those are considered as if they were
- *  the direct children of the transparent position's parent.
- *
- *  Note: some of these invariants actually apply to the trees which carry
- *  the positions, but they are phrased as if the positions themselves were
- *  the parent/children for conciseness.
- *
- *  Invariant 1: in a focused/offset position, start == point == end
- *  Invariant 2: in a range position,          start <= point <  end
- *  Invariant 3: an offset position never has a child with a range position
- *  Invariant 4: every range position child of a range position parent is contained within its parent
- *  Invariant 5: opaque range position siblings overlap at most at a single point
- *
- *  The following tests are useful on positions:
- *
- *  pos.isDefined     true if position is not an UndefinedPosition (those being NoPosition and FakePos)
- *  pos.isRange       true if position is a range (opaque or transparent) which implies start < end
- *  pos.isOpaqueRange true if position is an opaque range
- *
- *  The following accessor methods are provided - an exception will be thrown if
- *  point/start/end are attempted on an UndefinedPosition.
- *
- *  pos.source       The source file of the position, or NoSourceFile if unavailable
- *  pos.point        The offset of the point
- *  pos.start        The (inclusive) start offset, or the point of an offset position
- *  pos.end          The (exclusive) end offset, or the point of an offset position
- *
- *  The following conversion methods are often used:
- *
- *  pos.focus           Converts a range position to an offset position focused on the point
- *  pos.makeTransparent Convert an opaque range into a transparent range
- */
+/** @inheritdoc */
 class Position extends scala.reflect.api.Position with InternalPositionImpl with DeprecatedPosition {
   type Pos = Position
   def pos: Position = this
@@ -169,6 +133,20 @@ private[util] trait InternalPositionImpl {
   def focus: Position      = if (this.isRange) asOffset(point) else this
   def focusEnd: Position   = if (this.isRange) asOffset(end) else this
 
+  /** If you have it in for punctuation you might not like these methods.
+   *  However I think they're aptly named.
+   *
+   *    |   means union
+   *    ^   means "the point" (look, it's a caret)
+   *    |^  means union, taking the point of the rhs
+   *    ^|  means union, taking the point of the lhs
+   */
+  def |(that: Position, poses: Position*): Position = poses.foldLeft(this | that)(_ | _)
+  def |(that: Position): Position                   = this union that
+  def ^(point: Int): Position                       = this withPoint point
+  def |^(that: Position): Position                  = (this | that) ^ that.point
+  def ^|(that: Position): Position                  = (this | that) ^ this.point
+
   def union(pos: Position): Position = (
     if (!pos.isRange) this
     else if (this.isRange) copyRange(start = start min pos.start, end = end max pos.end)
@@ -188,20 +166,38 @@ private[util] trait InternalPositionImpl {
   def line: Int           = if (hasSource) source.offsetToLine(point) + 1 else 0
   def column: Int         = if (hasSource) calculateColumn() else 0
   def lineContent: String = if (hasSource) source.lineToString(line - 1) else ""
-  def lineCarat: String   = if (hasSource) " " * (column - 1) + "^" else ""
+  def lineCaret: String   = if (hasSource) " " * (column - 1) + "^" else ""
+  @deprecated("use `lineCaret`", since="2.11.0")
+  def lineCarat: String   = lineCaret
 
-  def showError(msg: String): String = finalPosition match {
-    case FakePos(fmsg) => s"$fmsg $msg"
-    case NoPosition    => msg
-    case pos           => s"${pos.line}: $msg\n${pos.lineContent}\n${pos.lineCarat}"
+  def showError(msg: String): String = {
+    def escaped(s: String) = {
+      def u(c: Int) = f"\\u$c%04x"
+      def uable(c: Int) = (c < 0x20 && c != '\t') || c == 0x7F
+      if (s exists (c => uable(c))) {
+        val sb = new StringBuilder
+        s foreach (c => sb append (if (uable(c)) u(c) else c))
+        sb.toString
+      } else s
+    }
+    def errorAt(p: Pos) = {
+      def where     = p.line
+      def content   = escaped(p.lineContent)
+      def indicator = p.lineCaret
+      f"$where: $msg%n$content%n$indicator"
+    }
+    finalPosition match {
+      case FakePos(fmsg) => s"$fmsg $msg"
+      case NoPosition    => msg
+      case pos           => errorAt(pos)
+    }
   }
   def showDebug: String = toString
   def show = (
-    if (isOpaqueRange && start != point) s"[$point/$start:$end]"
-    else if (isOpaqueRange) s"[$start:$end]"
+    if (isOpaqueRange) s"[$start:$end]"
     else if (isTransparent) s"<$start:$end>"
     else if (isDefined) s"[$point]"
-    else "[X]"
+    else "[NoPosition]"
   )
 
   private def asOffset(point: Int): Position = Position.offset(source, point)
@@ -226,8 +222,8 @@ private[util] trait InternalPositionImpl {
 private[util] trait DeprecatedPosition {
   self: Position =>
 
-  @deprecated("use `point`", "2.9.0")
-  def offset: Option[Int] = if (isDefined) Some(point) else None // used by sbt
+  @deprecated("use `point`", "2.9.0") // Used in SBT 0.12.4
+  def offset: Option[Int] = if (isDefined) Some(point) else None
 
   @deprecated("use `focus`", "2.11.0")
   def toSingleLine: Position = this
@@ -241,15 +237,15 @@ private[util] trait DeprecatedPosition {
   @deprecated("use `finalPosition`", "2.11.0")
   def inUltimateSource(source: SourceFile): Position = source positionInUltimateSource this
 
-  @deprecated("use `lineCarat`", "2.11.0")
+  @deprecated("use `lineCaret`", since="2.11.0")
   def lineWithCarat(maxWidth: Int): (String, String) = ("", "")
 
   @deprecated("Use `withSource(source)` and `withShift`", "2.11.0")
   def withSource(source: SourceFile, shift: Int): Position = this withSource source withShift shift
 
-  @deprecated("Use `start`", "2.11.0")
+  @deprecated("Use `start` instead", "2.11.0")
   def startOrPoint: Int = if (isRange) start else point
 
-  @deprecated("Use `end`", "2.11.0")
+  @deprecated("Use `end` instead", "2.11.0")
   def endOrPoint: Int = if (isRange) end else point
 }

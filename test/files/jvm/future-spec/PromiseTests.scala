@@ -9,7 +9,7 @@ import scala.runtime.NonLocalReturnControl
 import scala.util.{Try,Success,Failure}
 
 
-object PromiseTests extends MinimalScalaTest {
+class PromiseTests extends MinimalScalaTest {
   import ExecutionContext.Implicits._
 
   val defaultTimeout = Inf
@@ -38,10 +38,10 @@ object PromiseTests extends MinimalScalaTest {
 
       Await.result(failure fallbackTo timedOut, defaultTimeout) mustBe ("Timedout")
       Await.result(timedOut fallbackTo empty, defaultTimeout) mustBe ("Timedout")
-      Await.result(failure fallbackTo failure fallbackTo timedOut, defaultTimeout) mustBe ("Timedout")
+      Await.result(otherFailure fallbackTo failure fallbackTo timedOut, defaultTimeout) mustBe ("Timedout")
       intercept[RuntimeException] {
         Await.result(failure fallbackTo otherFailure, defaultTimeout)
-      }.getMessage mustBe ("last")
+      }.getMessage mustBe ("br0ken")
     }
 
   }

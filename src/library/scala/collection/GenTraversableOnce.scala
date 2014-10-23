@@ -130,8 +130,8 @@ trait GenTraversableOnce[+A] extends Any {
    *
    *  Note that the folding function used to compute b is equivalent to that used to compute c.
    *  {{{
-   *      scala> val a = LinkedList(1,2,3,4)
-   *      a: scala.collection.mutable.LinkedList[Int] = LinkedList(1, 2, 3, 4)
+   *      scala> val a = List(1,2,3,4)
+   *      a: List[Int] = List(1, 2, 3, 4)
    *
    *      scala> val b = (5 /: a)(_+_)
    *      b: Int = 15
@@ -167,8 +167,8 @@ trait GenTraversableOnce[+A] extends Any {
    *
    *  Note that the folding function used to compute b is equivalent to that used to compute c.
    *  {{{
-   *      scala> val a = LinkedList(1,2,3,4)
-   *      a: scala.collection.mutable.LinkedList[Int] = LinkedList(1, 2, 3, 4)
+   *      scala> val a = List(1,2,3,4)
+   *      a: List[Int] = List(1, 2, 3, 4)
    *
    *      scala> val b = (a :\ 5)(_+_)
    *      b: Int = 15
@@ -506,7 +506,6 @@ trait GenTraversableOnce[+A] extends Any {
   def toIndexedSeq: immutable.IndexedSeq[A]
 
   /** Converts this $coll to a stream.
-   *  $willNotTerminateInf
    *  @return a stream containing all elements of this $coll.
    */
   def toStream: Stream[A]
@@ -518,7 +517,7 @@ trait GenTraversableOnce[+A] extends Any {
    */
   def toIterator: Iterator[A]
 
-  /** Converts this $coll to a mutable buffer.
+  /** Uses the contents of this $coll to create a new mutable buffer.
    *  $willNotTerminateInf
    *  @return a buffer containing all elements of this $coll.
    */

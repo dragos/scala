@@ -59,7 +59,7 @@ object Vector extends IndexedSeqFactory[Vector] {
  *  @define mayNotTerminateInf
  *  @define willNotTerminateInf
  */
-final class Vector[+A](private[collection] val startIndex: Int, private[collection] val endIndex: Int, focus: Int)
+final class Vector[+A] private[immutable] (private[collection] val startIndex: Int, private[collection] val endIndex: Int, focus: Int)
 extends AbstractSeq[A]
    with IndexedSeq[A]
    with GenericTraversableTemplate[A, Vector]
@@ -227,7 +227,7 @@ override def companion: GenericCompanion[Vector] = Vector
             val ri = this.reverseIterator
             while (ri.hasNext) v = ri.next +: v
             v.asInstanceOf[That]
-          case _ => super.++(that)
+          case _ => super.++(again)
         }
       }
     }

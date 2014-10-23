@@ -10,7 +10,6 @@ package tools.nsc.transform.patmat
 import scala.language.postfixOps
 import scala.collection.mutable
 import scala.reflect.internal.util.Statistics
-import scala.reflect.internal.util.Position
 import scala.reflect.internal.util.HashSet
 
 trait Logic extends Debugging  {
@@ -72,6 +71,8 @@ trait Logic extends Debugging  {
       def unapply(v: Var): Some[Tree]
     }
 
+    def reportWarning(message: String): Unit
+
     // resets hash consing -- only supposed to be called by TreeMakersToProps
     def prepareNewAnalysis(): Unit
 
@@ -113,7 +114,7 @@ trait Logic extends Debugging  {
 
     // symbols are propositions
     abstract case class Sym(variable: Var, const: Const) extends Prop {
-      private[this] val id = Sym.nextSymId
+      private val id: Int = Sym.nextSymId
 
       override def toString = variable +"="+ const +"#"+ id
     }
@@ -125,6 +126,7 @@ trait Logic extends Debugging  {
         (uniques findEntryOrUpdate newSym)
       }
       private def nextSymId = {_symId += 1; _symId}; private var _symId = 0
+      implicit val SymOrdering: Ordering[Sym] = Ordering.by(_.id)
     }
 
     def /\(props: Iterable[Prop]) = if (props.isEmpty) True else props.reduceLeft(And(_, _))
@@ -161,13 +163,24 @@ trait Logic extends Debugging  {
 
     // to govern how much time we spend analyzing matches for unreachability/exhaustivity
     object AnalysisBudget {
-      import scala.tools.cmd.FromString.IntFromString
-      val max = sys.props.get("scalac.patmat.analysisBudget").collect(IntFromString.orElse{case "off" => Integer.MAX_VALUE}).getOrElse(256)
+      private val budgetProp = scala.sys.Prop[String]("scalac.patmat.analysisBudget")
+      private val budgetOff = "off"
+      val max: Int = {
+        val DefaultBudget = 256
+        budgetProp.option match {
+          case Some(`budgetOff`) =>
+            Integer.MAX_VALUE
+          case Some(x) =>
+            x.toInt
+          case None =>
+            DefaultBudget
+        }
+      }
 
       abstract class Exception(val advice: String) extends RuntimeException("CNF budget exceeded")
 
       object exceeded extends Exception(
-          s"(The analysis required more space than allowed. Please try with scalac -Dscalac.patmat.analysisBudget=${AnalysisBudget.max*2} or -Dscalac.patmat.analysisBudget=off.)")
+          s"(The analysis required more space than allowed. Please try with scalac -D${budgetProp.key}=${AnalysisBudget.max*2} or -D${budgetProp.key}=${budgetOff}.)")
 
     }
 
@@ -192,7 +205,7 @@ trait Logic extends Debugging  {
     def removeVarEq(props: List[Prop], modelNull: Boolean = false): (Formula, List[Formula]) = {
       val start = if (Statistics.canEnable) Statistics.startTimer(patmatAnaVarEq) else null
 
-      val vars = new scala.collection.mutable.HashSet[Var]
+      val vars = new mutable.HashSet[Var]
 
       object gatherEqualities extends PropTraverser {
         override def apply(p: Prop) = p match {
@@ -493,7 +506,7 @@ trait ScalaLogic extends Interface with Logic with TreeAndTypeAnalysis {
     }
 
 
-    import global.{ConstantType, Constant, SingletonType, Literal, Ident, singleType}
+    import global.{ConstantType, Constant, EmptyScope, SingletonType, Literal, Ident, refinedType, singleType, TypeBounds, NoSymbol}
     import global.definitions._
 
 
@@ -526,23 +539,30 @@ trait ScalaLogic extends Interface with Logic with TreeAndTypeAnalysis {
       private val trees = mutable.HashSet.empty[Tree]
 
       // hashconsing trees (modulo value-equality)
-      private[TreesAndTypesDomain] def uniqueTpForTree(t: Tree): Type =
-        // a new type for every unstable symbol -- only stable value are uniqued
-        // technically, an unreachable value may change between cases
-        // thus, the failure of a case that matches on a mutable value does not exclude the next case succeeding
-        // (and thuuuuus, the latter case must be considered reachable)
-        if (!t.symbol.isStable) t.tpe.narrow
+      private[TreesAndTypesDomain] def uniqueTpForTree(t: Tree): Type = {
+        def freshExistentialSubtype(tp: Type): Type = {
+          // SI-8611 tp.narrow is tempting, but unsuitable. See `testRefinedTypeSI8611` for an explanation.
+          NoSymbol.freshExistential("").setInfo(TypeBounds.upper(tp)).tpe
+        }
+
+        if (!t.symbol.isStable) {
+          // Create a fresh type for each unstable value, since we can never correlate it to another value.
+          // For example `case X => case X =>` should not complaing about the second case being unreachable,
+          // if X is mutable.
+          freshExistentialSubtype(t.tpe)
+        }
         else trees find (a => a.correspondsStructure(t)(sameValue)) match {
           case Some(orig) =>
-            debug.patmat("unique tp for tree: "+ ((orig, orig.tpe)))
+            debug.patmat("unique tp for tree: " + ((orig, orig.tpe)))
             orig.tpe
           case _ =>
             // duplicate, don't mutate old tree (TODO: use a map tree -> type instead?)
-            val treeWithNarrowedType = t.duplicate setType t.tpe.narrow
+            val treeWithNarrowedType = t.duplicate setType freshExistentialSubtype(t.tpe)
             debug.patmat("uniqued: "+ ((t, t.tpe, treeWithNarrowedType.tpe)))
             trees += treeWithNarrowedType
             treeWithNarrowedType.tpe
         }
+      }
     }
 
     sealed abstract class Const {
