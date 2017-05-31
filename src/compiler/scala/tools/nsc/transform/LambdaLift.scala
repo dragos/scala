@@ -64,14 +64,21 @@ abstract class LambdaLift extends InfoTransform {
     /** Symbols that are called from an inner class. */
     private val calledFromInner = new LinkedHashSet[Symbol]
 
-    private val ord = Ordering.fromLessThan[Symbol](_ isLess _)
-    private def newSymSet = TreeSet.empty[Symbol](ord)
+    private val posord = Ordering.fromLessThan[Symbol] { (sym1: Symbol, sym2: Symbol) =>
+      if (sym1.pos.isDefined && sym2.pos.isDefined
+        && sym1.pos.source == sym2.pos.source
+        && sym1.pos.point != sym2.pos.point)
+        sym1.pos.point < sym2.pos.point
+      else
+        sym1 isLess sym2
+    }
+    private def newSymSet(ord: Ordering[Symbol]) = TreeSet.empty[Symbol](ord)
 
     private def symSet(f: LinkedHashMap[Symbol, SymSet], sym: Symbol): SymSet =
-      f.getOrElseUpdate(sym, newSymSet)
+      f.getOrElseUpdate(sym, newSymSet(Ordering.fromLessThan(_ isLess _)))
 
     /** The set of symbols that need to be renamed. */
-    private val renamable = newSymSet
+    private val renamable = newSymSet(posord)
 
     /**
      * The new names for free variables proxies. If we simply renamed the
