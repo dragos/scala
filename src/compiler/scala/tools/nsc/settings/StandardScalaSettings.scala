@@ -37,6 +37,7 @@ trait StandardScalaSettings { _: MutableSettings =>
   val javaextdirs =       PathSetting ("-javaextdirs", "Override java extdirs classpath.", Defaults.javaExtDirs)
   val sourcepath =        PathSetting ("-sourcepath", "Specify location(s) of source files.", "") // Defaults.scalaSourcePath
   val rootdir =           PathSetting ("-rootdir", "The absolute path of the project root directory, usually the git/scm checkout. Used by -Wconf.", "") withAbbreviation "--root-directory"
+  val systemPath =        PathSetting ("-system", "Override location of Java system modules", "") withAbbreviation "--system"
 
   /** Other settings.
    */
@@ -66,6 +67,7 @@ trait StandardScalaSettings { _: MutableSettings =>
     .withAbbreviation("--release")
     .withAbbreviation("-java-output-version")
   def releaseValue: Option[String] = release.valueSetByUser
+  def systemPathValue: Option[String] = systemPath.valueSetByUser
   val target =
     ChoiceSetting("-target", "target", "Target platform for class files. Target < 8 is deprecated; target > 8 uses 8.",
       AllTargetVersions, DefaultTargetVersion, AllTargetVersions.map(v => if (v.toInt <= 8) s"uses $v" else "unsupported, uses default 8"))
