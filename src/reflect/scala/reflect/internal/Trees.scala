@@ -422,7 +422,6 @@ trait Trees extends api.Trees {
   }
 
   case class ImportSelector(name: Name, namePos: Int, rename: Name, renamePos: Int) extends ImportSelectorApi {
-    assert(isWildcard || rename != null, s"Bad import selector $name => $rename")
     def isWildcard = name == nme.WILDCARD && rename == null
     def isGiven    = name == nme.WILDCARD && rename == nme.`given`
     def isMask     = name != nme.WILDCARD && rename == nme.WILDCARD

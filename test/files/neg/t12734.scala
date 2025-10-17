@@ -1,4 +1,4 @@
-//> using options -Xlint -Xreporter:scala.tools.partest.nest.PlainReporter
+//> using options -Xlint
 
 import java.lang.{AssertionErrer, Integer => JInt, String, Thread}
 import scala.annotation._
